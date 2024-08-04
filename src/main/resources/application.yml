@@ -1,0 +1,36 @@
+server:
+  port: 3000
+  tomcat:
+    enableLoggingRequestDetails: true
+spring:
+  application:
+    name: hotelmanagementms
+  datasource:
+    url: jdbc:mysql://localhost:3306/hotelmanagement_db
+    username:
+    password:
+    initialization-mode: always
+  sql.init.mode: always
+  jpa:
+    spring.jpa.database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: false
+    properties.hibernate.format_sql: false
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ["prometheus","health","refresh"]
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+system:
+  api:
+    customerServiceUrl: http://localhost:8000
+    reservationServiceUrl: http://localhost:9000
+    paymentServiceUrl: http://localhost:7000
