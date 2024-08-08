@@ -1,5 +1,5 @@
 server:
-  port: 3000
+  port: 2000
   tomcat:
     enableLoggingRequestDetails: true
 spring:
@@ -19,6 +19,24 @@ eureka:
   client:
     serviceUrl:
       defaultZone: http://localhost:8761/eureka/
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      completePayment:
+        failureRateThreshold: 50
+      completeReservation:
+        failureRateThreshold: 50
+      getReservation:
+        failureRateThreshold: 50
+      updateReservation:
+        failureRateThreshold: 50
+  retry:
+    instances:
+      cancelPayment:
+        maxAttempts: 5
+        waitDuration: 1000
+
 management:
   endpoints:
     web:

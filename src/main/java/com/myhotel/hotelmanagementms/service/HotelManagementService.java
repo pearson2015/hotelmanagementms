@@ -1,58 +1,44 @@
 package com.myhotel.hotelmanagementms.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myhotel.hotelmanagementms.dto.*;
 import com.myhotel.hotelmanagementms.entity.Room;
+import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
+@Transactional
 public class HotelManagementService {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    ObjectMapper  objectMapper = new ObjectMapper();
-
-    @Value("${system.api.customerServiceUrl}")
-    private String customerServiceUrl;
-
-    @Value("${system.api.paymentServiceUrl}")
-    private String paymentServiceUrl;
-
-    @Value("${system.api.reservationServiceUrl}")
-    private String reservationServiceUrl;
-
-    @Autowired
-    private WebClient webClient;
-
     @Autowired
     private RoomService roomService;
+
+    @Autowired
+    private CustomerServiceClient customerServiceClient;
+
+    @Autowired
+    private PaymentServiceClient paymentServiceClient;
+
+    @Autowired
+    private ReservationServiceClient reservationServiceClient;
 
     public ReserveRoomResponse reserveRoom(ReserveRoomRequest reserveRoomRequest) {
         ReserveRoomResponse reserveRoomResponse = getReserveRoomResponse(reserveRoomRequest);
         Customer customer = getCustomer(reserveRoomRequest);
 
         //Save customer data
-        Customer savedCustomer = webClient.post()
-                .uri(customerServiceUrl + "/customerms/customer")
-                .bodyValue(customer)
-                .retrieve()
-                .bodyToMono(Customer.class)
-                .block();
-        if(savedCustomer == null) {
-            logger.info("Error while saving customer: " + customer);
-            reserveRoomResponse.setReservationStatus("ERROR");
-            return reserveRoomResponse;
-        }
-        logger.info("Customer saved: " + savedCustomer);
+        //Not an important service, reservation will be done if failure as well
+        //Just logging the error in case of failure
+        customerServiceClient.createCustomer(customer).subscribe(createdCustomer -> {
+            logger.info("Customer created: " + createdCustomer);
+        }, error -> {
+            logger.error("Error while saving customer: " + error);
+        });
 
         //Check available room
         List<Room> availableRooms = roomService.getRoomByRoomTypeAndStatus(reserveRoomRequest.getRoomType(), "AVAILABLE");
@@ -68,12 +54,7 @@ public class HotelManagementService {
 
         //Complete payment
         Payment payment = getPayment(reserveRoomRequest, room);
-        Payment savedPayment = webClient.post()
-                .uri(paymentServiceUrl + "/paymentms/payment")
-                .bodyValue(payment)
-                .retrieve()
-                .bodyToMono(Payment.class)
-                .block();
+        Payment savedPayment = paymentServiceClient.completePayment(payment);
         logger.info("Payment saved: " + savedPayment);
         if(savedPayment == null) {
             logger.info("Error while doing payment: " + payment);
@@ -83,21 +64,18 @@ public class HotelManagementService {
 
         //Reserve room
         Reservation reservation = getReservation(reserveRoomRequest, room, savedPayment);
-        Reservation savedReservation = webClient.post()
-                .uri(reservationServiceUrl + "/reservationms/reservation")
-                .bodyValue(reservation)
-                .retrieve()
-                .bodyToMono(Reservation.class)
-                .block();
+        Reservation savedReservation = reservationServiceClient.completeReservation(reservation);
         if(savedReservation == null) {
-            reserveRoomResponse.setReservationStatus("RESERVATION_FAILED");
             //Refund payment
-            boolean isRefunded = Boolean.TRUE.equals(webClient.delete()
-                    .uri(paymentServiceUrl + "/paymentms/payment/" + savedPayment.getId())
-                    .retrieve()
-                    .bodyToMono(Boolean.class)
-                    .block());
-            logger.info("Payment refunded with transactionId: " + savedPayment.getPaymentTransactionId());
+            savedPayment.setPaymentStatus("CANCELLED");
+            Payment cancelledPayment = paymentServiceClient.cancelPayment(savedPayment);
+            if(cancelledPayment == null) {
+                logger.info("Error while cancelling payment: " + savedPayment);
+                reserveRoomResponse.setReservationStatus("RESERVATION_FAILED_PAYMENT_NOT_REFUNDED");
+            } else {
+                logger.info("Payment cancelled with transactionId: " + cancelledPayment.getPaymentTransactionId());
+                reserveRoomResponse.setReservationStatus("RESERVATION_FAILED");
+            }
             return reserveRoomResponse;
         }
 
@@ -110,9 +88,9 @@ public class HotelManagementService {
         reserveRoomResponse.setReservationId(savedReservation.getId());
         reserveRoomResponse.setRoomNumber(room.getRoomNumber());
         reserveRoomResponse.setPrice(room.getPrice());
-        reserveRoomResponse.setPaymentStatus("PAID");
+        reserveRoomResponse.setPaymentStatus(savedPayment.getPaymentStatus());
         reserveRoomResponse.setPaymentTransactionId(savedPayment.getPaymentTransactionId());
-        reserveRoomResponse.setReservationStatus("SUCCESS");
+        reserveRoomResponse.setReservationStatus(savedReservation.getReservationStatus());
         logger.info("reserveRoomResponse: " + reserveRoomResponse);
 
         return reserveRoomResponse;
@@ -122,19 +100,10 @@ public class HotelManagementService {
 
         ReserveRoomResponse reserveRoomResponse = new ReserveRoomResponse();
 
-        Reservation reservation = webClient.get()
-                .uri(reservationServiceUrl + "/reservationms/reservation/id/" + reservationId)
-                .retrieve()
-                .bodyToMono(Reservation.class)
-                .block();
+        Reservation reservation = reservationServiceClient.getReservation(reservationId);
         if(reservation != null) {
             reservation.setReservationStatus("CANCELLED");
-            Reservation updatedReservation = webClient.put()
-                    .uri(reservationServiceUrl + "/reservationms/reservation")
-                    .bodyValue(reservation)
-                    .retrieve()
-                    .bodyToMono(Reservation.class)
-                    .block();
+            Reservation updatedReservation = reservationServiceClient.updateReservation(reservation);
             if (updatedReservation != null) {
                 logger.info("Reservation cancelled with reservationId: " + reservation.getId());
                 reserveRoomResponse.setReservationStatus("CANCELLED");
@@ -145,11 +114,7 @@ public class HotelManagementService {
             return reserveRoomResponse;
         }
 
-        Customer customer = webClient.get()
-                .uri(customerServiceUrl + "/customerms/customer/email/" + reservation.getEmail())
-                .retrieve()
-                .bodyToMono(Customer.class)
-                .block();
+        Customer customer = customerServiceClient.getCustomerByEmail(reservation.getEmail());
         logger.info("Customer found: " + customer);
         if(customer != null) {
             reserveRoomResponse.setEmail(customer.getEmail());
@@ -159,24 +124,20 @@ public class HotelManagementService {
             reserveRoomResponse.setAddress(customer.getAddress());
         }
 
-        Payment payment = webClient.get()
-                .uri(paymentServiceUrl + "/paymentms/payment/transactionid/" + reservation.getPaymentTransactionId())
-                .retrieve()
-                .bodyToMono(Payment.class)
-                .block();
+        Payment payment = paymentServiceClient.getPayment(reservation.getPaymentTransactionId());
         if(payment != null) {
-            boolean isRefunded = Boolean.TRUE.equals(webClient.delete()
-                    .uri(paymentServiceUrl + "/paymentms/payment/" + payment.getId())
-                    .retrieve()
-                    .bodyToMono(Boolean.class)
-                    .block());
-            if (isRefunded) {
+            payment.setPaymentStatus("REFUNDED");
+            Payment refundedPayment = paymentServiceClient.cancelPayment(payment);
+            if (refundedPayment != null) {
                 logger.info("Payment refunded with transactionId: " + payment.getPaymentTransactionId());
                 reserveRoomResponse.setPaymentTransactionId(payment.getPaymentTransactionId());
                 reserveRoomResponse.setPaymentStatus("REFUNDED");
+            } else {
+                logger.info("Error while refunding payment: " + payment);
+                reserveRoomResponse.setPaymentStatus("NOT_REFUNDED");
             }
         } else {
-            reserveRoomResponse.setPaymentStatus("NOT_REFUNDED");
+            reserveRoomResponse.setPaymentStatus("INVALID_PAYMENT");
             logger.info("No payment found for email: " + reservation.getEmail());
             return reserveRoomResponse;
         }
