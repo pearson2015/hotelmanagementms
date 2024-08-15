@@ -21,6 +21,8 @@ eureka:
 resilience4j:
   circuitbreaker:
     instances:
+      getCustomer:
+        failureRateThreshold: 50
       completePayment:
         failureRateThreshold: 50
       completeReservation:

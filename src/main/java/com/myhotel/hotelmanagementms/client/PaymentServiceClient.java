@@ -33,7 +33,7 @@ public class PaymentServiceClient {
     @Retry(name="cancelPayment", fallbackMethod = "fallbackCancelPayment")
     public String cancelPayment(Payment payment) {
         logger.info("Calling payment service to refund: " + payment);
-        return paymentWebClient.post()
+        return paymentWebClient.put()
                 .bodyValue(payment)
                 .retrieve()
                 .bodyToMono(String.class)
