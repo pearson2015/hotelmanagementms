@@ -18,5 +18,5 @@ public class Reservation {
     private Date reservationDate;
     private String reservationStatus;
     private double price;
-    private String paymentTransactionId;
+    private String paymentId;
 }

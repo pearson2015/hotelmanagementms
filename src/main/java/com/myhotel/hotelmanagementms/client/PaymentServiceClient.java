@@ -1,4 +1,4 @@
-package com.myhotel.hotelmanagementms.service;
+package com.myhotel.hotelmanagementms.client;
 
 import com.myhotel.hotelmanagementms.dto.Payment;
 import com.myhotel.hotelmanagementms.util.Constant;
@@ -21,39 +21,49 @@ public class PaymentServiceClient {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     @CircuitBreaker(name="completePayment", fallbackMethod = "fallbackCompletePayment")
-    public Payment completePayment(Payment payment) {
+    public String completePayment(Payment payment) {
+        logger.info("Calling payment service to complete: " + payment);
         return paymentWebClient.post()
                 .bodyValue(payment)
                 .retrieve()
-                .bodyToMono(Payment.class)
+                .bodyToMono(String.class)
                 .block();
     }
 
     @Retry(name="cancelPayment", fallbackMethod = "fallbackCancelPayment")
-    public Payment cancelPayment(Payment payment) {
-        return paymentWebClient.put()
+    public String cancelPayment(Payment payment) {
+        logger.info("Calling payment service to refund: " + payment);
+        return paymentWebClient.post()
                 .bodyValue(payment)
                 .retrieve()
-                .bodyToMono(Payment.class)
+                .bodyToMono(String.class)
                 .block();
     }
 
-    public Payment getPayment(String paymentTransactionId) {
+    @Retry(name="getPayment", fallbackMethod = "fallbackGetPayment")
+    public Payment getPaymentById(String paymentId) {
+        logger.info("Calling payment service to retrieve: " + paymentId);
         return paymentWebClient.get()
-                .uri(Constant.GET_PAYMENT_SERVICE_PATH + paymentTransactionId)
+                .uri("/" + paymentId)
                 .retrieve()
                 .bodyToMono(Payment.class)
                 .block();
     }
 
-    public Payment fallbackCompletePayment(Exception e) {
+    public String fallbackCompletePayment(Exception e) {
         logger.info("Entering fallback while doing payment: "
                 + e.getMessage());
         return null;
     }
 
-    public Payment fallbackCancelPayment(Exception e) {
+    public String fallbackCancelPayment(Exception e) {
         logger.info("Entering fallback while cancelling or refunding payment: "
+                + e.getMessage());
+        return null;
+    }
+
+    public Payment fallbackGetPayment(Exception e) {
+        logger.info("Entering fallback while retrieving payment: "
                 + e.getMessage());
         return null;
     }

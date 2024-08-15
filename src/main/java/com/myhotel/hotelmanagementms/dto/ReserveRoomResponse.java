@@ -22,7 +22,7 @@ public class ReserveRoomResponse {
     private Long reservationId;
     private String reservationStatus;
     private Double price;
-    private String paymentTransactionId;
+    private String paymentId;
     private String paymentStatus;
 
 }

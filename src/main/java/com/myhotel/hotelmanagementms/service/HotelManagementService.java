@@ -1,5 +1,8 @@
 package com.myhotel.hotelmanagementms.service;
 
+import com.myhotel.hotelmanagementms.client.CustomerServiceClient;
+import com.myhotel.hotelmanagementms.client.PaymentServiceClient;
+import com.myhotel.hotelmanagementms.client.ReservationServiceClient;
 import com.myhotel.hotelmanagementms.dto.*;
 import com.myhotel.hotelmanagementms.entity.Room;
 import com.myhotel.hotelmanagementms.util.Constant;
@@ -57,27 +60,29 @@ public class HotelManagementService {
 
         //Complete payment
         Payment payment = getPayment(reserveRoomRequest, room);
-        Payment savedPayment = paymentServiceClient.completePayment(payment);
-        logger.info("Payment saved: " + savedPayment);
-        if (savedPayment == null) {
+        String paymentId = paymentServiceClient.completePayment(payment);
+        logger.info("Payment completed with transactionId: " + paymentId);
+        if (paymentId == null) {
             logger.info("Error while doing payment: " + payment);
             reserveRoomResponse.setReservationStatus(Constant.PaymentStatus.PAYMENT_FAILED.name());
             return reserveRoomResponse;
         }
 
         //Reserve room
-        Reservation reservation = getReservation(reserveRoomRequest, room, savedPayment);
+        Reservation reservation = getReservation(reserveRoomRequest, room, paymentId);
         Reservation savedReservation = reservationServiceClient.completeReservation(reservation);
         if (savedReservation == null) {
+            Payment savedPayment = paymentServiceClient.getPaymentById(paymentId);
+            logger.info("Payment saved: " + savedPayment);
             //Refund payment
             savedPayment.setPaymentStatus(Constant.PaymentStatus.CANCELLED.name());
-            Payment cancelledPayment = paymentServiceClient.cancelPayment(savedPayment);
-            if (cancelledPayment == null) {
+            String cancelledPaymentId = paymentServiceClient.cancelPayment(savedPayment);
+            if (cancelledPaymentId == null) {
                 logger.info("Error while cancelling payment: " + savedPayment);
                 reserveRoomResponse.setReservationStatus(
                         Constant.ReservationStatus.RESERVATION_FAILED_PAYMENT_NOT_REFUNDED.name());
             } else {
-                logger.info("Payment cancelled with transactionId: " + cancelledPayment.getPaymentTransactionId());
+                logger.info("Payment cancelled with paymentId: " + cancelledPaymentId);
                 reserveRoomResponse.setReservationStatus(
                         Constant.ReservationStatus.RESERVATION_FAILED.name());
             }
@@ -86,15 +91,16 @@ public class HotelManagementService {
 
         room.setStatus(Constant.RoomStatus.RESERVED.name());
         room.setReservationId(savedReservation.getId());
-        room.setPaymentTransactionId(savedReservation.getPaymentTransactionId());
+        room.setPaymentId(paymentId);
+        room.setEmail(reserveRoomRequest.getEmail());
         logger.info("Room booked: " + room);
         roomService.updateRoom(room);
 
         reserveRoomResponse.setReservationId(savedReservation.getId());
         reserveRoomResponse.setRoomNumber(room.getRoomNumber());
         reserveRoomResponse.setPrice(room.getPrice());
-        reserveRoomResponse.setPaymentStatus(savedPayment.getPaymentStatus());
-        reserveRoomResponse.setPaymentTransactionId(savedPayment.getPaymentTransactionId());
+        reserveRoomResponse.setPaymentStatus(Constant.PaymentStatus.COMPLETED.name());
+        reserveRoomResponse.setPaymentId(paymentId);
         reserveRoomResponse.setReservationStatus(savedReservation.getReservationStatus());
         logger.info("reserveRoomResponse: " + reserveRoomResponse);
 
@@ -129,13 +135,13 @@ public class HotelManagementService {
             reserveRoomResponse.setAddress(customer.getAddress());
         }
 
-        Payment payment = paymentServiceClient.getPayment(reservation.getPaymentTransactionId());
+        Payment payment = paymentServiceClient.getPaymentById(reservation.getPaymentId());
         if (payment != null) {
             payment.setPaymentStatus(Constant.PaymentStatus.REFUNDED.name());
-            Payment refundedPayment = paymentServiceClient.cancelPayment(payment);
-            if (refundedPayment != null) {
+            String refundedPaymentId = paymentServiceClient.cancelPayment(payment);
+            if (refundedPaymentId != null) {
                 logger.info("Payment refunded with transactionId: " + payment.getPaymentTransactionId());
-                reserveRoomResponse.setPaymentTransactionId(payment.getPaymentTransactionId());
+                reserveRoomResponse.setPaymentId(payment.getPaymentId());
                 reserveRoomResponse.setPaymentStatus(Constant.PaymentStatus.REFUNDED.name());
             } else {
                 logger.info("Error while refunding payment: " + payment);
@@ -155,7 +161,8 @@ public class HotelManagementService {
         Room room = roomService.getRoomByRoomNumber(reservation.getRoomNumber());
         room.setStatus(Constant.RoomStatus.AVAILABLE.name());
         room.setReservationId(null);
-        room.setPaymentTransactionId(null);
+        room.setPaymentId(null);
+        room.setEmail(null);
         roomService.updateRoom(room);
 
         return reserveRoomResponse;
@@ -199,12 +206,12 @@ public class HotelManagementService {
         return payment;
     }
 
-    private Reservation getReservation(ReserveRoomRequest reserveRoomRequest, Room room, Payment payment) {
+    private Reservation getReservation(ReserveRoomRequest reserveRoomRequest, Room room, String paymentId) {
         Reservation reservation = new Reservation();
         reservation.setEmail(reserveRoomRequest.getEmail());
         reservation.setRoomNumber(room.getRoomNumber());
         reservation.setRoomType(reserveRoomRequest.getRoomType());
-        reservation.setPaymentTransactionId(payment.getPaymentTransactionId());
+        reservation.setPaymentId(paymentId);
         reservation.setPrice(room.getPrice());
         return reservation;
     }

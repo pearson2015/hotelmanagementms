@@ -1,4 +1,4 @@
-package com.myhotel.hotelmanagementms.service;
+package com.myhotel.hotelmanagementms.client;
 
 import com.myhotel.hotelmanagementms.dto.Customer;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +20,7 @@ public class CustomerServiceClient {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     public Mono<Customer> createCustomer(Customer customer) {
+        logger.info("Calling createCustomer : " + customer);
         return customerWebClient.post()
                 .bodyValue(customer)
                 .retrieve()
@@ -28,6 +29,7 @@ public class CustomerServiceClient {
 
     @CircuitBreaker(name="getCustomer", fallbackMethod = "fallbackGetCustomer")
     public Customer getCustomerByEmail(String email) {
+        logger.info("Calling customer service by email: " +email);
         return customerWebClient.get()
                 .uri("/email/" + email)
                 .retrieve()

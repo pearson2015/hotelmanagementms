@@ -11,7 +11,7 @@ import java.util.Date;
 @ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Payment {
-    private Long id;
+    private String paymentId;
     private String email;
     private double price;
     private String paymentMethod;

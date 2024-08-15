@@ -2,6 +2,7 @@ package com.myhotel.hotelmanagementms.service;
 
 import com.myhotel.hotelmanagementms.entity.Room;
 import com.myhotel.hotelmanagementms.repository.RoomRepository;
+import com.myhotel.hotelmanagementms.util.Constant;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -29,7 +30,7 @@ public class RoomService {
     }
 
     public Room addRoom(Room room) {
-        room.setStatus("AVAILABLE");
+        room.setStatus(Constant.RoomStatus.AVAILABLE.name());
         return roomRepository.save(room);
     }
 

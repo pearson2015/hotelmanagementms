@@ -26,7 +26,7 @@ public class Constant {
     }
 
     public enum PaymentStatus {
-        SUCCESS,
+        COMPLETED,
         CANCELLED,
         REFUNDED,
         NOT_REFUNDED,

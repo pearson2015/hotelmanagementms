@@ -1,0 +1,3 @@
+spring:
+  config:
+    import: optional:http://localhost:8888
