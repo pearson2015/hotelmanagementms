@@ -1,5 +1,6 @@
 package com.myhotel.hotelmanagementms.client;
 
+import com.myhotel.hotelmanagementms.config.ServiceInstanceRetriever;
 import com.myhotel.hotelmanagementms.dto.Payment;
 import com.myhotel.hotelmanagementms.util.Constant;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -16,8 +17,11 @@ public class PaymentServiceClient {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    @Value("${system.api.paymentServiceUrl}")
-    private String paymentServiceUrl;
+    @Value("${system.service.paymentServiceName}")
+    private String paymentServiceName;
+
+    @Autowired
+    private ServiceInstanceRetriever serviceInstanceRetriever;
 
     @Autowired
     private WebClient.Builder webClientBuilder;
@@ -25,6 +29,10 @@ public class PaymentServiceClient {
     @CircuitBreaker(name="completePayment", fallbackMethod = "fallbackCompletePayment")
     public String completePayment(Payment payment) {
         logger.info("Calling payment service to complete: " + payment);
+        String paymentServiceUrl = serviceInstanceRetriever.getServiceUrl(paymentServiceName);
+        logger.info("paymentServiceUrl : " + paymentServiceUrl);
+        if(paymentServiceUrl == null)
+            return null;
         return webClientBuilder.baseUrl(paymentServiceUrl + Constant.PAYMENT_SERVICE_PATH)
                 .build()
                 .post()
@@ -37,6 +45,10 @@ public class PaymentServiceClient {
     @Retry(name="cancelPayment", fallbackMethod = "fallbackCancelPayment")
     public String cancelPayment(Payment payment) {
         logger.info("Calling payment service to refund: " + payment);
+        String paymentServiceUrl = serviceInstanceRetriever.getServiceUrl(paymentServiceName);
+        logger.info("paymentServiceUrl : " + paymentServiceUrl);
+        if(paymentServiceUrl == null)
+            return null;
         return webClientBuilder.baseUrl(paymentServiceUrl + Constant.PAYMENT_SERVICE_PATH)
                 .build()
                 .put()
@@ -49,6 +61,10 @@ public class PaymentServiceClient {
     @Retry(name="getPayment", fallbackMethod = "fallbackGetPayment")
     public Payment getPaymentById(String paymentId) {
         logger.info("Calling payment service to retrieve: " + paymentId);
+        String paymentServiceUrl = serviceInstanceRetriever.getServiceUrl(paymentServiceName);
+        logger.info("paymentServiceUrl : " + paymentServiceUrl);
+        if(paymentServiceUrl == null)
+            return null;
         return webClientBuilder.baseUrl(paymentServiceUrl + Constant.PAYMENT_SERVICE_PATH)
                 .build()
                 .get()

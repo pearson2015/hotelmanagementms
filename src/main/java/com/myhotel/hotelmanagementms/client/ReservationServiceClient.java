@@ -1,5 +1,6 @@
 package com.myhotel.hotelmanagementms.client;
 
+import com.myhotel.hotelmanagementms.config.ServiceInstanceRetriever;
 import com.myhotel.hotelmanagementms.dto.Reservation;
 import com.myhotel.hotelmanagementms.util.Constant;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -15,8 +16,11 @@ public class ReservationServiceClient {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    @Value("${system.api.reservationServiceUrl}")
-    private String reservationServiceUrl;
+    @Value("${system.service.reservationServiceName}")
+    private String reservationServiceName;
+
+    @Autowired
+    private ServiceInstanceRetriever serviceInstanceRetriever;
 
     @Autowired
     private WebClient.Builder webClientBuilder;
@@ -24,6 +28,10 @@ public class ReservationServiceClient {
     @CircuitBreaker(name="completeReservation", fallbackMethod = "fallbackConnectReservation")
     public Reservation completeReservation(Reservation reservation) {
         logger.info("Calling reservation service: " +reservation);
+        String reservationServiceUrl = serviceInstanceRetriever.getServiceUrl(reservationServiceName);
+        logger.info("reservationServiceUrl : " + reservationServiceUrl);
+        if(reservationServiceUrl == null)
+            return null;
         return webClientBuilder.baseUrl(reservationServiceUrl + Constant.RESERVATION_SERVICE_PATH)
                 .build()
                 .post()
@@ -36,6 +44,10 @@ public class ReservationServiceClient {
     @CircuitBreaker(name="getReservation", fallbackMethod = "fallbackConnectReservation")
     public Reservation getReservation(Long reservationId) {
         logger.info("Calling reservation service for reservationId: " +reservationId);
+        String reservationServiceUrl = serviceInstanceRetriever.getServiceUrl(reservationServiceName);
+        logger.info("reservationServiceUrl : " + reservationServiceUrl);
+        if(reservationServiceUrl == null)
+            return null;
         return webClientBuilder.baseUrl(reservationServiceUrl + Constant.RESERVATION_SERVICE_PATH)
                 .build()
                 .get()
@@ -48,6 +60,10 @@ public class ReservationServiceClient {
     @CircuitBreaker(name="updateReservation", fallbackMethod = "fallbackConnectReservation")
     public Reservation updateReservation(Reservation reservation) {
         logger.info("Calling reservation service to update: " +reservation);
+        String reservationServiceUrl = serviceInstanceRetriever.getServiceUrl(reservationServiceName);
+        logger.info("reservationServiceUrl : " + reservationServiceUrl);
+        if(reservationServiceUrl == null)
+            return null;
         return webClientBuilder.baseUrl(reservationServiceUrl + Constant.RESERVATION_SERVICE_PATH)
                 .build()
                 .put()
