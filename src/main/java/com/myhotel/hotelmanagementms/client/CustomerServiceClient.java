@@ -1,8 +1,9 @@
 package com.myhotel.hotelmanagementms.client;
 
 import com.myhotel.hotelmanagementms.dto.Customer;
+import com.myhotel.hotelmanagementms.util.Constant;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.slf4j.Logger;
@@ -13,15 +14,19 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 @Service
 public class CustomerServiceClient {
 
-    @Autowired
-    @Qualifier("customerWebClient")
-    private WebClient customerWebClient;
-
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
+
+    @Value("${system.api.customerServiceUrl}")
+    private String customerServiceUrl;
+
+    @Autowired
+    private WebClient.Builder webClientBuilder;
 
     public Mono<Customer> createCustomer(Customer customer) {
         logger.info("Calling createCustomer : " + customer);
-        return customerWebClient.post()
+        return webClientBuilder.baseUrl(customerServiceUrl + Constant.CUSTOMER_SERVICE_PATH)
+                .build()
+                .post()
                 .bodyValue(customer)
                 .retrieve()
                 .bodyToMono(Customer.class);
@@ -30,7 +35,9 @@ public class CustomerServiceClient {
     @CircuitBreaker(name="getCustomer", fallbackMethod = "fallbackGetCustomer")
     public Customer getCustomerByEmail(String email) {
         logger.info("Calling customer service by email: " +email);
-        return customerWebClient.get()
+        return webClientBuilder.baseUrl(customerServiceUrl + Constant.CUSTOMER_SERVICE_PATH)
+                .build()
+                .get()
                 .uri("/email/" + email)
                 .retrieve()
                 .bodyToMono(Customer.class)

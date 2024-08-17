@@ -45,6 +45,9 @@ management:
     web:
       exposure:
         include: ["prometheus","health","refresh"]
+  tracing:
+    sampling:
+      probability: 1
 
 springdoc:
   swagger-ui:
@@ -55,3 +58,8 @@ system:
     customerServiceUrl: http://localhost:8000
     reservationServiceUrl: http://localhost:9000
     paymentServiceUrl: http://localhost:7000
+
+#logging:
+  #pattern:
+    #correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+  #include-application-name: false
